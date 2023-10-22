@@ -17,7 +17,6 @@ public interface StatsRepository extends JpaRepository<Hit, Long> {
             "order by count(h.ip) desc ")
     List<StatsDtoResponse> getStats(LocalDateTime start, LocalDateTime end, List<String> uris);
 
-
     @Query("select new ru.practicum.statsdto.StatsDtoResponse(h.app, h.uri, count(distinct h.ip)) " +
             "from Hit as h " +
             "where h.timestamp BETWEEN :start AND :end " +
