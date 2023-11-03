@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,7 +28,9 @@ public class StatsServiceImpl implements StatsService {
     public List<StatsDtoResponse> getStats(LocalDateTime dateTimeStart, LocalDateTime dateTimeEnd,
                                            List<String> uris, Boolean unique) {
 
-        return unique ? statsRepository.getStatsUniqueIp(dateTimeStart, dateTimeEnd, uris)
-                : statsRepository.getStats(dateTimeStart, dateTimeEnd, uris);
+/*        return unique ? statsRepository.getStatsUniqueIp(dateTimeStart, dateTimeEnd, uris)
+                : statsRepository.getStats(dateTimeStart, dateTimeEnd, uris);*/
+
+        return new ArrayList<>();
     }
 }

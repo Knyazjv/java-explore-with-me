@@ -9,16 +9,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @Slf4j
 @Service
 public class StatsClient {
     private final WebClient webClient;
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Autowired
     public StatsClient() {
-        this.webClient = WebClient.create("${evm-stats-client.url}");
+        this.webClient = WebClient.create("http://localhost:9090");
     }
 
     public ResponseEntity<Void> createHit(StatsDtoRequest statsDtoRequest) {
@@ -31,12 +34,13 @@ public class StatsClient {
                 .block();
     }
 
-    public ResponseEntity<List<StatsDtoResponse>> getStats(String start, String end,
+    public ResponseEntity<List<StatsDtoResponse>> getStats(LocalDateTime start, LocalDateTime end,
                                                            List<String> uris, Boolean unique) {
         log.info("StatsClient Get /stats?start={}&end={}&uris={}&unique={}", start, end, uris, unique);
         return webClient.get()
                 .uri("/stats?start={start}&end={end}&uris={uris}&unique={unique}",
-                        start, end, String.join(",", uris), unique)
+                        start.format(formatter), end.format(formatter),
+                        String.join(",", uris), unique)
                 .retrieve()
                 .toEntityList(StatsDtoResponse.class)
                 .block();

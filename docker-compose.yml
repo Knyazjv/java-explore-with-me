@@ -39,10 +39,10 @@ services:
     image: postgres:14.8-alpine3.18
     container_name: ewm-db
     ports:
-      - "6542:5431"
+      - "6542:5432"
     environment:
       POSTGRES_INITDB_ARGS: '--locale=ru_RU.UTF8'
       POSTGRES_DB: "ewm-db"
-      POSTGRES_USER: "userMain"
-      POSTGRES_PASSWORD: "passwordMain"
+      POSTGRES_USER: "user"
+      POSTGRES_PASSWORD: "password"
 
