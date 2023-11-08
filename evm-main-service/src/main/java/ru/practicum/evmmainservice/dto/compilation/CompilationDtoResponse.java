@@ -1,8 +1,9 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.compilation;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import ru.practicum.evmmainservice.dto.event.EventDtoShortResponse;
 
 import java.util.List;
 

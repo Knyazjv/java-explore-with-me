@@ -1,6 +1,8 @@
 package ru.practicum.statsclient;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
+import reactor.core.publisher.Mono;
 import ru.practicum.statsdto.StatsDtoRequest;
 import ru.practicum.statsdto.StatsDtoResponse;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,16 +23,15 @@ public class StatsClient {
 
     @Autowired
     public StatsClient() {
-        this.webClient = WebClient.create("http://localhost:9090");
+        this.webClient = WebClient.create("${evm-stats-client.url}");
     }
 
     public ResponseEntity<Void> createHit(StatsDtoRequest statsDtoRequest) {
-        log.info("StatsClient Post /hit");
         return webClient.post()
                 .uri("/hit")
-                .body(BodyInserters.fromValue(statsDtoRequest))
+                .body(Mono.just(statsDtoRequest), StatsDtoRequest.class)
                 .retrieve()
-                .toEntity(Void.class)
+                .toBodilessEntity()
                 .block();
     }
 
@@ -42,7 +43,8 @@ public class StatsClient {
                         start.format(formatter), end.format(formatter),
                         String.join(",", uris), unique)
                 .retrieve()
-                .toEntityList(StatsDtoResponse.class)
+                .toEntity(new ParameterizedTypeReference<List<StatsDtoResponse>>() {
+                })
                 .block();
     }
 }

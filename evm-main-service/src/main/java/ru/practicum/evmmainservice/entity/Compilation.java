@@ -22,8 +22,8 @@ public class Compilation {
 
     @ManyToMany(cascade = {CascadeType.ALL})
     @JoinTable(name = "event_compilation",
-    joinColumns = { @JoinColumn(name = "event_id")},
-    inverseJoinColumns = { @JoinColumn(name = "compilation_id")})
+    joinColumns = { @JoinColumn(name = "compilation_id")},
+    inverseJoinColumns = { @JoinColumn(name = "event_id")})
     List<Event> events;
 
     @Column(nullable = false)

@@ -1,4 +1,4 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.user;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

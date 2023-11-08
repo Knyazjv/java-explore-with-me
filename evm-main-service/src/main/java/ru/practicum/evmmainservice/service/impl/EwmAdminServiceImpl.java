@@ -5,27 +5,36 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import ru.practicum.evmmainservice.dto.*;
-import ru.practicum.evmmainservice.entity.Category;
-import ru.practicum.evmmainservice.entity.Compilation;
-import ru.practicum.evmmainservice.entity.Event;
-import ru.practicum.evmmainservice.entity.QEvent;
+import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.evmmainservice.dto.category.CategoryDto;
+import ru.practicum.evmmainservice.dto.compilation.CompilationDtoRequest;
+import ru.practicum.evmmainservice.dto.compilation.CompilationDtoResponse;
+import ru.practicum.evmmainservice.dto.event.EventDtoResponse;
+import ru.practicum.evmmainservice.dto.event.EventUpdateDtoRequest;
+import ru.practicum.evmmainservice.dto.event.GetEventRequestAdmin;
+import ru.practicum.evmmainservice.dto.user.UserDto;
+import ru.practicum.evmmainservice.entity.*;
 import ru.practicum.evmmainservice.enumEwm.State;
 import ru.practicum.evmmainservice.enumEwm.StateAction;
-import ru.practicum.evmmainservice.exception.ConflictException;
-import ru.practicum.evmmainservice.exception.ForbiddenException;
-import ru.practicum.evmmainservice.exception.NotFoundException;
-import ru.practicum.evmmainservice.mapper.*;
+import ru.practicum.evmmainservice.exception.exception.BadRequestException;
+import ru.practicum.evmmainservice.exception.exception.ConflictException;
+import ru.practicum.evmmainservice.exception.exception.ForbiddenException;
+import ru.practicum.evmmainservice.exception.exception.NotFoundException;
+import ru.practicum.evmmainservice.mapper.MappingCategory;
+import ru.practicum.evmmainservice.mapper.MappingCompilation;
+import ru.practicum.evmmainservice.mapper.MappingEvent;
+import ru.practicum.evmmainservice.mapper.MappingUser;
 import ru.practicum.evmmainservice.repository.*;
 import ru.practicum.evmmainservice.service.EvmAdminService;
 import ru.practicum.statsclient.StatsClient;
 import ru.practicum.statsdto.StatsDtoResponse;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.*;
+
+import static ru.practicum.evmmainservice.service.impl.ConstString.*;
+import static ru.practicum.evmmainservice.service.impl.Supportive.getEventIds;
+import static ru.practicum.evmmainservice.service.impl.Supportive.getUris;
 
 @Service
 @RequiredArgsConstructor
@@ -35,22 +44,20 @@ public class EwmAdminServiceImpl implements EvmAdminService {
     private final EvmCategoryRepository categoryRepository;
     private final EvmEventRepository eventRepository;
     private final EvmCompilationRepository compilationRepository;
+    private final EvmRequestRepository requestRepository;
     private final StatsClient statsClient;
     private final MappingUser mappingUser;
     private final MappingCategory mappingCategory;
     private final MappingCompilation mappingCompilation;
     private final MappingEvent mappingEvent;
-    private final String NOT_FOUND_USER = "User with id=%d was not found";
-    private final String NOT_FOUND_CATEGORY = "Category with id=%d was not found";
-    private final String URI_EVENT = "/event/";
-    private final String NOT_FOUND_COMPILATION = "Compilation with id=%d was not found";
-    private final String NOT_FOUND_EVENT = "Event with id=%d was not found";
 
+    @Transactional
     @Override
     public UserDto createUser(UserDto userDto) {
         return mappingUser.toDto(userRepository.save(mappingUser.toUser(userDto)));
     }
 
+    @Transactional
     @Override
     public void deleteUser(Long userId) {
         userRepository.findById(userId)
@@ -60,42 +67,58 @@ public class EwmAdminServiceImpl implements EvmAdminService {
 
     @Override
     public List<UserDto> getUsersWithPagination(List<Long> ids, PageRequest pageRequest) {
-        return mappingUser.toDtos(userRepository.findAllByIds(ids, pageRequest));
+        return ids == null ? mappingUser.toDtos(userRepository.findAll(pageRequest).getContent())
+                : mappingUser.toDtos(userRepository.findAllByIds(ids, pageRequest));
     }
 
+    @Transactional
     @Override
     public CategoryDto createCategory(CategoryDto categoryDto) {
         return mappingCategory.toDto(categoryRepository.save(mappingCategory.toCategory(categoryDto)));
     }
 
+    @Transactional
     @Override
     public void deleteCategory(Long catId) {
-        categoryRepository.findById(catId)
+        Category category = categoryRepository.findById(catId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_CATEGORY, catId)));
         List<Event> events = eventRepository.findAllByCategory_Id(catId);
         if(events.size() != 0) {
             throw new ConflictException("The category is not empty");
         }
-        categoryRepository.deleteById(catId);
+        categoryRepository.delete(category);
     }
 
+    @Transactional
     @Override
     public CategoryDto updateCategory(Long catId, CategoryDto categoryDto) {
-        categoryRepository.findById(catId)
+        Category category = categoryRepository.findById(catId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_CATEGORY, catId)));
-        return mappingCategory.toDto(categoryRepository.save(mappingCategory.toCategoryWithId(catId, categoryDto)));
+        if (categoryDto.getName() != null) {
+            category.setName(categoryDto.getName());
+        }
+        return mappingCategory.toDto(categoryRepository.save(category));
     }
 
+    @Transactional
     @Override
     public CompilationDtoResponse createCompilation(CompilationDtoRequest cdr) {
-        List<Event> events = eventRepository.findAllByIdIn(cdr.getEvents());
+        List<Event> events;
+        if (cdr.getEvents() == null) {
+            events = Collections.emptyList();
+        } else {
+            events = eventRepository.findAllByIdIn(cdr.getEvents());
+        }
         Compilation compilation = compilationRepository.save(mappingCompilation.toCompilation(cdr, events));
         List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
                 LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
-        return mappingCompilation.toCompilationDtoResponse(mappingEvent.toEventDtoShortResponses(events, stats),
-                compilation);
+        List<Request> requests = requestRepository
+                .findAllByEventIdsAndStatusConfirmed(getEventIds(compilation.getEvents()));
+        return mappingCompilation.
+                toCompilationDtoResponse(mappingEvent.toEventDtoShortResponses(events, stats, requests), compilation);
     }
 
+    @Transactional
     @Override
     public void deleteCompilation(Long compId) {
         compilationRepository.findById(compId)
@@ -103,9 +126,15 @@ public class EwmAdminServiceImpl implements EvmAdminService {
         compilationRepository.deleteById(compId);
     }
 
+    @Transactional
     @Override
     public CompilationDtoResponse updateCompilation(CompilationDtoRequest cdr, Long compId) {
-        List<Event> events = eventRepository.findAllByIdIn(cdr.getEvents());
+        List<Event> events;
+        if (cdr.getEvents() == null) {
+            events = new ArrayList<>();
+        } else {
+            events = eventRepository.findAllByIdIn(cdr.getEvents());
+        }
         Compilation compilation = compilationRepository.findById(compId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_COMPILATION, compId)));
         events.addAll(compilation.getEvents());
@@ -119,10 +148,13 @@ public class EwmAdminServiceImpl implements EvmAdminService {
         Compilation newCompilation = compilationRepository.save(compilation);
         List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
                 LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
-        return mappingCompilation.toCompilationDtoResponse(mappingEvent.toEventDtoShortResponses(events, stats),
-                newCompilation);
+        List<Request> requests = requestRepository
+                .findAllByEventIdsAndStatusConfirmed(getEventIds(compilation.getEvents()));
+        return mappingCompilation.toCompilationDtoResponse(mappingEvent.toEventDtoShortResponses(events,
+                stats, requests), newCompilation);
     }
 
+    @Transactional
     @Override
     public EventDtoResponse updateEventById(Long eventId, EventUpdateDtoRequest eventDtoRequest) {
         Event event = eventRepository.findById(eventId)
@@ -131,7 +163,7 @@ public class EwmAdminServiceImpl implements EvmAdminService {
             throw new ForbiddenException("The start date of the modified event must " +
                     "be no earlier than an hour from the publication date");
         }
-        if (event.getState() != State.PUBLISHED) {
+        if (event.getState() == State.PUBLISHED) {
             throw new ForbiddenException("Cannot publish the event because " +
                     "it's not in the right state: PUBLISHED");
         }
@@ -146,32 +178,35 @@ public class EwmAdminServiceImpl implements EvmAdminService {
         Event newEvent = updateEvent(event, eventDtoRequest, category);
         List<StatsDtoResponse> stats = statsClient.getStats(LocalDateTime.now().minusYears(10),
                 LocalDateTime.now().plusYears(10), List.of(URI_EVENT + eventId), false).getBody();
-        assert stats != null;
-        return mappingEvent.toEventDtoResponse(eventRepository.save(newEvent),
-                stats.get(0).getHits());
+        Long views = (stats == null) || (stats.isEmpty()) ? 0 : stats.get(0).getHits();
+        List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
+        return mappingEvent.toEventDtoResponse(eventRepository.save(newEvent), views, (long) requests.size());
     }
 
     @Override
     public List<EventDtoResponse> getEvents(GetEventRequestAdmin req, Integer from, Integer size) {
-        BooleanExpression finalCondition = getCondition(req);
+        Optional<BooleanExpression> finalCondition = getCondition(req);
         Sort sort = Sort.by("id").ascending();
         PageRequest pageRequest = PageRequest.of(from / size, size, sort);
-        Iterable<Event> events = eventRepository.findAll(finalCondition, pageRequest);
+        Iterable<Event> events = finalCondition
+                .<Iterable<Event>>map(booleanExpression -> eventRepository.findAll(booleanExpression, pageRequest))
+                .orElseGet(() -> eventRepository.findAll(pageRequest));
         List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
                 LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
-        return mappingEvent.toEventDtoResponses(events, stats);
+        List<Request> requests = requestRepository.findAllByEventIdsAndStatusConfirmed(getEventIds(events));
+        return mappingEvent.toEventDtoResponses(events, stats, requests);
     }
 
-    private BooleanExpression getCondition(GetEventRequestAdmin req) {
+    private Optional<BooleanExpression> getCondition(GetEventRequestAdmin req) {
         QEvent event = QEvent.event;
         List<BooleanExpression> conditions = new ArrayList<>();
-        if (req.getUsers() != null || !req.getUsers().isEmpty()) {
+        if (req.getUsers() != null && !req.getUsers().isEmpty()) {
             conditions.add(event.initiator.id.in(req.getUsers()));
         }
-        if (req.getStates() != null || !req.getUsers().isEmpty()) {
+        if (req.getStates() != null && !req.getStates().isEmpty()) {
             conditions.add(event.state.in(req.getStates()));
         }
-        if (req.getCategories() != null || !req.getCategories().isEmpty()) {
+        if (req.getCategories() != null && !req.getCategories().isEmpty()) {
             conditions.add(event.category.id.in(req.getCategories()));
         }
         if (req.getRangeStart() != null) {
@@ -180,9 +215,11 @@ public class EwmAdminServiceImpl implements EvmAdminService {
         if (req.getRangeEnd() != null) {
             conditions.add(event.eventDate.before(req.getRangeEnd()));
         }
-        return conditions.stream()
-                .reduce(BooleanExpression::and)
-                .get();
+        if (conditions.isEmpty()) {
+            return Optional.empty();
+        } else {
+            return conditions.stream().reduce(BooleanExpression::and);
+        }
     }
 
     private Event updateEvent(Event event, EventUpdateDtoRequest dto, Category category) {
@@ -193,11 +230,17 @@ public class EwmAdminServiceImpl implements EvmAdminService {
             event.setCategory(category);
         }
         if (dto.getEventDate() != null) {
+            if (dto.getEventDate().isBefore(LocalDateTime.now())) {
+                throw new BadRequestException("The date of the event has passed");
+            }
             event.setEventDate(dto.getEventDate());
         }
         if (dto.getLocation() != null) {
             event.getLocation().setLat(dto.getLocation().getLat());
             event.getLocation().setLon(dto.getLocation().getLon());
+        }
+        if (dto.getDescription() != null) {
+            event.setDescription(dto.getDescription());
         }
         if (dto.getPaid() != null) {
             event.setPaid(dto.getPaid());
@@ -208,26 +251,22 @@ public class EwmAdminServiceImpl implements EvmAdminService {
         if (dto.getRequestModeration() != null) {
             event.setRequestModeration(dto.getRequestModeration());
         }
-        if (dto.getStateAction() == StateAction.PUBLISH_EVENT) {
+        StateAction stateAction = StateAction.from(dto.getStateAction());
+        if (stateAction == null && dto.getStateAction() != null) {
+            throw new BadRequestException("StateAction unknown:" + dto.getStateAction());
+        }
+        if (stateAction == StateAction.PUBLISH_EVENT) {
+            if (event.getState() == State.CANCELED) {
+                throw new ForbiddenException("A canceled event cannot be published");
+            }
             event.setState(State.PUBLISHED);
-        } else if (dto.getStateAction() == StateAction.REJECT_EVENT) {
-            event.setState(State.CANCELLED);
+            event.setConfirmedRequests(event.getConfirmedRequests());
+        } else if (stateAction == StateAction.REJECT_EVENT) {
+            event.setState(State.CANCELED);
         }
         if (dto.getTitle() != null) {
             event.setTitle(dto.getTitle());
         }
         return event;
-    }
-
-    private List<String> getUris(List<Event> events) {
-        return events.stream().map(event -> URI_EVENT + event.getId()).collect(Collectors.toList());
-    }
-
-    private List<String> getUris(Iterable<Event> events) {
-        List<String> result = new ArrayList<>();
-        for (Event event : events) {
-            result.add(URI_EVENT + event.getId());
-        }
-        return result;
     }
 }

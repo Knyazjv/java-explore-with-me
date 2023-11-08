@@ -1,12 +1,14 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.compilation;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.validator.constraints.Length;
+import ru.practicum.evmmainservice.dto.validateInterface.Create;
+import ru.practicum.evmmainservice.dto.validateInterface.Update;
 
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 import java.util.List;
 
 @AllArgsConstructor
@@ -17,9 +19,9 @@ public class CompilationDtoRequest {
 
     private List<Long> events;
 
-    @NotNull
     private Boolean pinned;
 
-    @NotBlank
+    @Length(max = 50,groups = {Update.class, Create.class})
+    @NotBlank(groups = {Create.class})
     private String title;
 }

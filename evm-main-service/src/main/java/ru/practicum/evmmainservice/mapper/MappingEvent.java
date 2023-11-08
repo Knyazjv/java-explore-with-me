@@ -1,22 +1,22 @@
 package ru.practicum.evmmainservice.mapper;
 
+import ru.practicum.evmmainservice.entity.*;
 import ru.practicum.evmmainservice.enumEwm.State;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import ru.practicum.evmmainservice.dto.EventDtoRequest;
-import ru.practicum.evmmainservice.dto.EventDtoResponse;
-import ru.practicum.evmmainservice.dto.EventDtoShortResponse;
-import ru.practicum.evmmainservice.entity.Category;
-import ru.practicum.evmmainservice.entity.Event;
-import ru.practicum.evmmainservice.entity.Location;
-import ru.practicum.evmmainservice.entity.User;
+import ru.practicum.evmmainservice.dto.event.EventDtoRequest;
+import ru.practicum.evmmainservice.dto.event.EventDtoResponse;
+import ru.practicum.evmmainservice.dto.event.EventDtoShortResponse;
 import ru.practicum.statsdto.StatsDtoResponse;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static ru.practicum.evmmainservice.service.impl.ConstString.URI_EVENT;
 
 @RequiredArgsConstructor
 @Component
@@ -24,6 +24,7 @@ public class MappingEvent {
     private final MappingCategory mappingCategory;
     private final MappingUser mappingUser;
     private final MappingLocation mapperLocation;
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public Event toEvent(EventDtoRequest edr, User user, Category category, Location location) {
         return new Event(null,
@@ -35,39 +36,27 @@ public class MappingEvent {
                 edr.getEventDate(),
                 user,
                 location,
-                edr.getPaid(),
-                edr.getParticipantLimit(),
+                edr.getPaid() != null && edr.getPaid(),
+                edr.getParticipantLimit() == null ? 0 : edr.getParticipantLimit(),
                 null,
-                edr.getRequestModeration(),
+                edr.getRequestModeration() == null || edr.getRequestModeration(),
                 State.PENDING,
                 edr.getTitle());
     }
 
-    public Event toEventWithId(Long id, EventDtoRequest edr, User user, Category category, Location location) {
-        return new Event(id,
-                edr.getAnnotation(),
-                category,
-                0L,
-                LocalDateTime.now(),
-                edr.getDescription(),
-                edr.getEventDate(),
-                user,
-                location,
-                edr.getPaid(),
-                edr.getParticipantLimit(),
-                null,
-                edr.getRequestModeration(),
-                State.PENDING,
-                edr.getTitle());
-    }
-
-    public EventDtoResponse toEventDtoResponse(Event event, Long views) {
+    public EventDtoResponse toEventDtoResponse(Event event, Long views, Long confirmedRequests) {
+        if (confirmedRequests == null) {
+            confirmedRequests = 0L;
+        }
+        if (views == null) {
+            views = 0L;
+        }
         return new EventDtoResponse(event.getAnnotation(),
                 mappingCategory.toDto(event.getCategory()),
-                event.getConfirmedRequests(),
-                event.getCreatedOn(),
+                confirmedRequests,
+                event.getCreatedOn().format(formatter),
                 event.getDescription(),
-                event.getEventDate(),
+                event.getEventDate().format(formatter),
                 event.getId(),
                 mappingUser.toUserShortDto(event.getInitiator()),
                 mapperLocation.toDto(event.getLocation()),
@@ -80,13 +69,41 @@ public class MappingEvent {
                 views);
     }
 
-    public EventDtoShortResponse toEventDtoShortResponse(Event event, Long views) {
+    public EventDtoResponse toEventDtoResponse(Event event, Long views) {
+        if (views == null) {
+            views = 0L;
+        }
+        return new EventDtoResponse(event.getAnnotation(),
+                mappingCategory.toDto(event.getCategory()),
+                0L,
+                event.getCreatedOn().format(formatter),
+                event.getDescription(),
+                event.getEventDate().format(formatter),
+                event.getId(),
+                mappingUser.toUserShortDto(event.getInitiator()),
+                mapperLocation.toDto(event.getLocation()),
+                event.getPaid(),
+                event.getParticipantLimit(),
+                event.getPublishedOn(),
+                event.getRequestModeration(),
+                event.getState(),
+                event.getTitle(),
+                views);
+    }
+
+    public EventDtoShortResponse toEventDtoShortResponse(Event event, Long views, Long confirmedRequests) {
+        if (confirmedRequests == null) {
+            confirmedRequests = 0L;
+        }
+        if (views == null) {
+            views = 0L;
+        }
         return new EventDtoShortResponse(event.getAnnotation(),
                 mappingCategory.toDto(event.getCategory()),
-                event.getConfirmedRequests(),
-                event.getCreatedOn(),
+                confirmedRequests,
+                event.getCreatedOn().format(formatter),
                 event.getDescription(),
-                event.getEventDate(),
+                event.getEventDate().format(formatter),
                 event.getId(),
                 mappingUser.toUserShortDto(event.getInitiator()),
                 event.getPaid(),
@@ -94,37 +111,49 @@ public class MappingEvent {
                 views);
     }
 
-    public List<EventDtoShortResponse> toEventDtoShortResponses(List<Event> events, List<StatsDtoResponse> stats) {
-        Map<Long, Long> map = stats.stream()
-                .collect(Collectors.toMap((statsDtoResponse) -> {
-                    return Long.parseLong(statsDtoResponse.getUri().replace("/event/", ""));
-                }, StatsDtoResponse::getHits, (val1, val2) -> val1));
+    public List<EventDtoShortResponse> toEventDtoShortResponses(List<Event> events, List<StatsDtoResponse> stats,
+                                                                List<Request> requests) {
+        Map<Long, Long> mapStats = getMapStats(stats);
+        Map<Long, Long> mapRequests = getMapRequest(requests);
         return events.stream()
-                .map(event -> toEventDtoShortResponse(event, map.get(event.getId())))
+                .map(event -> toEventDtoShortResponse(event, mapStats.get(event.getId()),
+                        mapRequests.get(event.getId())))
                 .collect(Collectors.toList());
     }
 
-    public List<EventDtoShortResponse> toEventDtoShortResponses(Iterable<Event> events, List<StatsDtoResponse> stats) {
-        Map<Long, Long> map = stats.stream()
-                .collect(Collectors.toMap((statsDtoResponse) -> {
-                    return Long.parseLong(statsDtoResponse.getUri().replace("/event/", ""));
-                }, StatsDtoResponse::getHits, (val1, val2) -> val1));
+
+
+    public List<EventDtoShortResponse> toEventDtoShortResponses(Iterable<Event> events, List<StatsDtoResponse> stats,
+                                                                List<Request> requests) {
+        Map<Long, Long> mapStats = getMapStats(stats);
+        Map<Long, Long> mapRequests = getMapRequest(requests);
         List<EventDtoShortResponse> dtos = new ArrayList<>();
         for (Event event : events) {
-            dtos.add(toEventDtoShortResponse(event, map.get(event.getId())));
+            dtos.add(toEventDtoShortResponse(event, mapStats.get(event.getId()), mapRequests.get(event.getId())));
         }
         return dtos;
     }
 
-    public List<EventDtoResponse> toEventDtoResponses(Iterable<Event> events, List<StatsDtoResponse> stats) {
-        Map<Long, Long> map = stats.stream()
-                .collect(Collectors.toMap((statsDtoResponse) -> {
-                    return Long.parseLong(statsDtoResponse.getUri().replace("/event/", ""));
-                }, StatsDtoResponse::getHits, (val1, val2) -> val1));
+    public List<EventDtoResponse> toEventDtoResponses(Iterable<Event> events, List<StatsDtoResponse> stats,
+                                                      List<Request> requests) {
+        Map<Long, Long> mapStats = getMapStats(stats);
+        Map<Long, Long> mapRequests = getMapRequest(requests);
         List<EventDtoResponse> dtos = new ArrayList<>();
         for (Event event : events) {
-            dtos.add(toEventDtoResponse(event, map.get(event.getId())));
+            dtos.add(toEventDtoResponse(event, mapStats.get(event.getId()), mapRequests.get(event.getId())));
         }
         return dtos;
+    }
+
+    private Map<Long, Long>  getMapRequest(List<Request> requests) {
+        return requests.stream()
+                .collect(Collectors.groupingBy(request -> request.getEvent().getId(), Collectors.counting()));
+    }
+
+    private Map<Long, Long>  getMapStats(List<StatsDtoResponse> stats) {
+        return stats.stream()
+                .collect(Collectors.toMap((statsDtoResponse) -> {
+                    return Long.parseLong(statsDtoResponse.getUri().replace(URI_EVENT, ""));
+                }, StatsDtoResponse::getHits, (val1, val2) -> val1));
     }
 }

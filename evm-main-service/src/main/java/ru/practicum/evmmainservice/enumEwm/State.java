@@ -3,7 +3,7 @@ package ru.practicum.evmmainservice.enumEwm;
 public enum State {
     PENDING,
     PUBLISHED,
-    CANCELLED;
+    CANCELED;
 
     public static State from(String state) {
         for (State value : State.values()) {

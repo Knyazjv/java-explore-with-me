@@ -1,6 +1,5 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.event;
 
-import ru.practicum.evmmainservice.enumEwm.RequestStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -19,6 +18,6 @@ public class EventRequestStatusUpdateRequest {
     private List<Long> requestIds;
 
     @NotNull
-    private RequestStatus status;
+    private String status;
 
 }

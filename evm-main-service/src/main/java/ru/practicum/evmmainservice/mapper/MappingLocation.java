@@ -1,7 +1,7 @@
 package ru.practicum.evmmainservice.mapper;
 
 import org.springframework.stereotype.Component;
-import ru.practicum.evmmainservice.dto.LocationDto;
+import ru.practicum.evmmainservice.dto.location.LocationDto;
 import ru.practicum.evmmainservice.entity.Location;
 
 @Component
@@ -12,9 +12,5 @@ public class MappingLocation {
 
     public Location toLocation(LocationDto locationDto) {
         return new Location(null, locationDto.getLat(), locationDto.getLon());
-    }
-
-    public Location toLocationWithId(Long id, LocationDto locationDto) {
-        return new Location(id, locationDto.getLat(), locationDto.getLon());
     }
 }

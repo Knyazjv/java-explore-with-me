@@ -28,9 +28,7 @@ public class StatsServiceImpl implements StatsService {
     public List<StatsDtoResponse> getStats(LocalDateTime dateTimeStart, LocalDateTime dateTimeEnd,
                                            List<String> uris, Boolean unique) {
 
-/*        return unique ? statsRepository.getStatsUniqueIp(dateTimeStart, dateTimeEnd, uris)
-                : statsRepository.getStats(dateTimeStart, dateTimeEnd, uris);*/
-
-        return new ArrayList<>();
+        return unique ? statsRepository.getStatsUniqueIp(dateTimeStart, dateTimeEnd, uris)
+                : statsRepository.getStats(dateTimeStart, dateTimeEnd, uris);
     }
 }

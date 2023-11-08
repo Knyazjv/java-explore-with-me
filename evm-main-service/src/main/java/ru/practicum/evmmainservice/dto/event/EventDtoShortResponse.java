@@ -1,45 +1,34 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.event;
 
-import ru.practicum.evmmainservice.enumEwm.State;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.LocalDateTime;
+import ru.practicum.evmmainservice.dto.user.UserShortDto;
+import ru.practicum.evmmainservice.dto.category.CategoryDto;
 
 @AllArgsConstructor
 @NoArgsConstructor
 @Getter
 @Setter
-public class EventDtoResponse {
+public class EventDtoShortResponse {
     private String annotation;
 
     private CategoryDto category;
 
     private Long confirmedRequests;
 
-    private LocalDateTime createdOn;
+    private String createdOn;
 
     private String description;
 
-    private LocalDateTime eventDate;
+    private String eventDate;
 
     private Long id;
 
     private UserShortDto initiator;
     
-    private LocationDto location;
-    
     private Boolean paid;
-    
-    private Long participantLimit;
-
-    private LocalDateTime publishedOn;
-
-    private Boolean requestModeration;
-
-    private State state;
 
     private String title;
 

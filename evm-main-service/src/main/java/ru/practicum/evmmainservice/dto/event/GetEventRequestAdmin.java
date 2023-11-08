@@ -1,4 +1,4 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.event;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -43,8 +43,12 @@ public class GetEventRequestAdmin {
         }
         request.setStates(states);
         request.setCategories(categories);
-        request.setRangeStart(LocalDateTime.parse(rangeStart, formatter));
-        request.setRangeEnd(LocalDateTime.parse(rangeEnd, formatter));
+        if (request.getRangeStart() != null) {
+            request.setRangeStart(LocalDateTime.parse(rangeStart, formatter));
+        }
+        if (request.getRangeEnd() != null) {
+            request.setRangeEnd(LocalDateTime.parse(rangeEnd, formatter));
+        }
         return request;
     }
 }

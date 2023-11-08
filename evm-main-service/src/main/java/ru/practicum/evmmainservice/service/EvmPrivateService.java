@@ -1,14 +1,15 @@
 package ru.practicum.evmmainservice.service;
 
 import org.springframework.data.domain.PageRequest;
-import ru.practicum.evmmainservice.dto.*;
+import ru.practicum.evmmainservice.dto.event.*;
+import ru.practicum.evmmainservice.dto.request.RequestDtoResponse;
 
 import java.util.List;
 
 public interface EvmPrivateService {
     EventDtoResponse createEvent(EventDtoRequest eventDtoRequest, Long userId);
 
-    EventDtoResponse updateEvent(EventDtoRequest eventDtoRequest, Long userId, Long eventId);
+    EventDtoResponse updateEvent(EventUpdateDtoRequest eventDtoRequest, Long userId, Long eventId);
 
     List<EventDtoShortResponse> getEvents(Long userId, PageRequest page);
 

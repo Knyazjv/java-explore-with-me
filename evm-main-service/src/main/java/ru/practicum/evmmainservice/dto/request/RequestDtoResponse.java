@@ -1,18 +1,18 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.request;
 
-import ru.practicum.evmmainservice.enumEwm.RequestStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+import ru.practicum.evmmainservice.enumEwm.RequestStatus;
 
-import java.time.LocalDateTime;
-
+@NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 public class RequestDtoResponse {
 
-    private LocalDateTime created;
+    private String created;
 
     private Long event;
 

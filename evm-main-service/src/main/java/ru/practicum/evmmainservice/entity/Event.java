@@ -1,6 +1,5 @@
 package ru.practicum.evmmainservice.entity;
 
-import com.querydsl.core.annotations.QueryEntity;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -41,7 +40,7 @@ public class Event {
     private LocalDateTime eventDate;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "initiator_id", nullable = false)
     private User initiator;
 
     @OneToOne
@@ -60,6 +59,7 @@ public class Event {
     @Column(name = "request_moderation")
     private Boolean requestModeration;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "state")
     private State state;
 

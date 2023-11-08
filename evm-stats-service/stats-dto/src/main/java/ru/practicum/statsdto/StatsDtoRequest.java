@@ -26,7 +26,6 @@ public class StatsDtoRequest {
     @NotBlank
     private String uri;
 
-    @Pattern(regexp = "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$")
     @NotBlank
     private String ip;
 

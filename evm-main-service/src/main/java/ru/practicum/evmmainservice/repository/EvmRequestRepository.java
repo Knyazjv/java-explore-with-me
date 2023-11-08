@@ -1,7 +1,7 @@
 package ru.practicum.evmmainservice.repository;
 
-import ru.practicum.evmmainservice.enumEwm.RequestStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import ru.practicum.evmmainservice.entity.Request;
 
 import java.util.List;
@@ -11,9 +11,13 @@ public interface EvmRequestRepository extends JpaRepository<Request, Long> {
 
     Optional<Request> findByRequester_IdAndEvent_Id(Long requesterId, Long eventId);
 
-    List<Request> findAllByEvent_IdAndStatus(Long eventId, RequestStatus status);
+    @Query("select r from Request r where r.event.id = :eventId and r.status = 'CONFIRMED'")
+    List<Request> findAllByEventIdAndStatusConfirmed(Long eventId);
 
-    List<Request> findAllByRequester_Id(Long requesterId);
+    @Query("select r from Request r where r.event.id in :ids and r.status = 'CONFIRMED'")
+    List<Request> findAllByEventIdsAndStatusConfirmed(List<Long> ids);
 
-    List<Request> findAllByEvent_Id(Long eventId);
+    List<Request> findAllByRequesterId(Long requesterId);
+
+    List<Request> findAllByEventId(Long eventId);
 }

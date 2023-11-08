@@ -1,4 +1,4 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.event;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,8 +35,10 @@ public class GetEventRequest {
         request.setText(text);
         request.setCategories(categories);
         request.setPaid(paid);
-        request.setRangeStart(LocalDateTime.parse(rangeStart, formatter));
-        request.setRangeEnd(LocalDateTime.parse(rangeEnd, formatter));
+        request.setRangeStart(rangeStart == null ? null
+                : LocalDateTime.parse(rangeStart, formatter));
+        request.setRangeEnd(rangeEnd == null ? null :
+                LocalDateTime.parse(rangeEnd, formatter));
         request.setOnlyAvailable(onlyAvailable);
         request.setSort(SortEvent.from(sort));
         return request;

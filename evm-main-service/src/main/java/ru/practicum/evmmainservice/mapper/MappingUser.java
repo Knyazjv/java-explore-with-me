@@ -1,8 +1,8 @@
 package ru.practicum.evmmainservice.mapper;
 
 import org.springframework.stereotype.Component;
-import ru.practicum.evmmainservice.dto.UserDto;
-import ru.practicum.evmmainservice.dto.UserShortDto;
+import ru.practicum.evmmainservice.dto.user.UserDto;
+import ru.practicum.evmmainservice.dto.user.UserShortDto;
 import ru.practicum.evmmainservice.entity.User;
 
 import java.util.List;

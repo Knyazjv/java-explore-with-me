@@ -1,14 +1,22 @@
 package ru.practicum.evmmainservice.service.impl;
 
-import ru.practicum.evmmainservice.enumEwm.RequestStatus;
-import ru.practicum.evmmainservice.enumEwm.State;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import ru.practicum.evmmainservice.dto.*;
+import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.evmmainservice.dto.event.*;
+import ru.practicum.evmmainservice.dto.request.RequestDtoResponse;
 import ru.practicum.evmmainservice.entity.*;
-import ru.practicum.evmmainservice.exception.*;
-import ru.practicum.evmmainservice.mapper.*;
+import ru.practicum.evmmainservice.enumEwm.RequestStatus;
+import ru.practicum.evmmainservice.enumEwm.State;
+import ru.practicum.evmmainservice.enumEwm.StateAction;
+import ru.practicum.evmmainservice.exception.exception.BadRequestException;
+import ru.practicum.evmmainservice.exception.exception.ConstraintException;
+import ru.practicum.evmmainservice.exception.exception.ForbiddenException;
+import ru.practicum.evmmainservice.exception.exception.NotFoundException;
+import ru.practicum.evmmainservice.mapper.MappingEvent;
+import ru.practicum.evmmainservice.mapper.MappingLocation;
+import ru.practicum.evmmainservice.mapper.MappingRequest;
 import ru.practicum.evmmainservice.repository.*;
 import ru.practicum.evmmainservice.service.EvmPrivateService;
 import ru.practicum.statsclient.StatsClient;
@@ -18,6 +26,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static ru.practicum.evmmainservice.service.impl.ConstString.*;
+import static ru.practicum.evmmainservice.service.impl.Supportive.getEventIds;
+import static ru.practicum.evmmainservice.service.impl.Supportive.getUris;
 
 @Service
 @RequiredArgsConstructor
@@ -31,18 +43,8 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
     private final MappingLocation mappingLocation;
     private final MappingRequest mappingRequest;
     private final StatsClient statsClient;
-    private final String NOT_FOUND_CATEGORY = "Category with id=%d was not found";
-    private final String NOT_FOUND_USER = "User with id=%d was not found";
-    private final String NOT_FOUND_EVENT = "Event with id=%d was not found";
-    private final String NOT_FOUND_LOCATION = "Location with id=%d was not found";
-    private final String NOT_FOUND_REQUEST = "Request with id=%d was not found";
-    private final String NOT_BE_PUBLISHED = "Event must not be published";
-    private final String TWO_HOURS_FROM_THE_MOMENT = "The date and time at which the event is scheduled " +
-            "cannot be earlier than two hours from the current moment";
-    private final String LIMIT = "The participant limit has been reached";
-    private final String URI_EVENT = "/event/";
 
-
+    @Transactional
     @Override
     public EventDtoResponse createEvent(EventDtoRequest eventDtoRequest, Long userId) {
         Location location = locationRepository.save(mappingLocation.toLocation(eventDtoRequest.getLocation()));
@@ -60,25 +62,27 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
         return mappingEvent.toEventDtoResponse(eventRepository.save(event), 0L);
     }
 
+    @Transactional
     @Override
-    public EventDtoResponse updateEvent(EventDtoRequest eventDtoRequest, Long userId, Long eventId) {
+    public EventDtoResponse updateEvent(EventUpdateDtoRequest eventDtoRequest, Long userId, Long eventId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_EVENT, eventId)));
         if (event.getState().equals(State.PUBLISHED)) {
-            throw new BadRequestException(NOT_BE_PUBLISHED);
+            throw new ForbiddenException(NOT_BE_PUBLISHED);
         }
         if (eventDtoRequest.getEventDate() != null && LocalDateTime.now().plusHours(2)
                 .isAfter(eventDtoRequest.getEventDate())) {
-            throw new ForbiddenException(TWO_HOURS_FROM_THE_MOMENT);
+            throw new BadRequestException(TWO_HOURS_FROM_THE_MOMENT);
         }
-        Category category = categoryRepository.findById(eventDtoRequest.getCategory())
-                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_CATEGORY,
-                        eventDtoRequest.getCategory())));
-        User user = userRepository.findById(userId)
+        Category category = null;
+        if (eventDtoRequest.getCategory() != null) {
+            category = categoryRepository.findById(eventDtoRequest.getCategory())
+                    .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_CATEGORY,
+                            eventDtoRequest.getCategory())));
+        }
+        userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
-        Location location = locationRepository.save(mappingLocation.
-                toLocationWithId(event.getLocation().getId(), eventDtoRequest.getLocation()));
-        Event newEvent = mappingEvent.toEventWithId(eventId, eventDtoRequest, user, category, location);
+        Event newEvent = getUpdateEvent(event, eventDtoRequest, category);
         return mappingEvent.toEventDtoResponse(eventRepository.save(newEvent), 0L);
     }
 
@@ -87,7 +91,9 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
         List<Event> events = eventRepository.findAllByInitiatorId(userId, page);
         List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
                 LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
-        return mappingEvent.toEventDtoShortResponses(events, stats);
+        List<Request> requests = requestRepository
+                .findAllByEventIdsAndStatusConfirmed(getEventIds(events));
+        return mappingEvent.toEventDtoShortResponses(events, stats, requests);
     }
 
     @Override
@@ -98,17 +104,19 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
                 .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
         List<StatsDtoResponse> stats = statsClient.getStats(LocalDateTime.now().minusYears(10),
                 LocalDateTime.now().plusYears(10), List.of(URI_EVENT + eventId), false).getBody();
-        assert stats != null;
-        return mappingEvent.toEventDtoResponse(event, stats.get(0).getHits());
+        Long views = stats == null || stats.isEmpty() ? 0L : stats.get(0).getHits();
+        List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
+        return mappingEvent.toEventDtoResponse(event, views, (long) requests.size());
     }
 
+    @Transactional
     @Override
     public RequestDtoResponse createRequest(Long requesterId, Long eventId) {
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, requesterId)));
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
-        if (requestRepository.findByRequester_IdAndEvent_Id(requesterId, eventId).isEmpty()) {
+        if (requestRepository.findByRequester_IdAndEvent_Id(requesterId, eventId).isPresent()) {
             throw new ConstraintException("You can't add a repeat request");
         }
         if (event.getInitiator().getId().equals(requesterId)) {
@@ -117,19 +125,24 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
         if (event.getState() != State.PUBLISHED) {
             throw new ConstraintException("You cannot participate in an unpublished event");
         }
-        if (event.getParticipantLimit() <= requestRepository
-                .findAllByEvent_IdAndStatus(eventId, RequestStatus.CONFIRMED).size()) {
+        LocalDateTime dateTime = LocalDateTime.now();
+        List<Request> allByEventIdAndStatus = requestRepository
+                .findAllByEventIdAndStatusConfirmed(eventId);
+        Integer confirmedRequest = (allByEventIdAndStatus == null) || (allByEventIdAndStatus.isEmpty())
+                ? 0 : allByEventIdAndStatus.size();
+        if (event.getParticipantLimit() <= confirmedRequest && event.getParticipantLimit() != 0) {
             throw new ConstraintException(LIMIT);
         }
-        Request request = requestRepository.save(mappingRequest.toRequest(event, requester));
+        Request request = requestRepository.save(mappingRequest.toRequest(event, requester, dateTime));
         return mappingRequest.toRequestDtoResponse(request);
     }
 
+    @Transactional
     @Override
     public RequestDtoResponse cancelRequest(Long userId, Long requestId) {
         Request request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_REQUEST, requestId)));
-        request.setStatus(RequestStatus.REJECTED);
+        request.setStatus(RequestStatus.CANCELED);
         Request newRequest = requestRepository.save(request);
         return mappingRequest.toRequestDtoResponse(newRequest);
     }
@@ -138,7 +151,7 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
     public List<RequestDtoResponse> getRequests(Long userId) {
         userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
-        List<Request> requests = requestRepository.findAllByRequester_Id(userId);
+        List<Request> requests = requestRepository.findAllByRequesterId(userId);
         return mappingRequest.toRequestDtoResponses(requests);
     }
 
@@ -146,10 +159,11 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
     public List<RequestDtoResponse> getRequestsFromTheInitiator(Long userId, Long eventId) {
         userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
-        List<Request> requests = requestRepository.findAllByEvent_Id(eventId);
+        List<Request> requests = requestRepository.findAllByEventId(eventId);
         return mappingRequest.toRequestDtoResponses(requests);
     }
 
+    @Transactional
     @Override
     public EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
                                                               EventRequestStatusUpdateRequest request) {
@@ -158,19 +172,23 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
         Event event = eventRepository.findByInitiatorIdAndId(userId, eventId)
                 .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
         List<Request> requests = requestRepository.findAllById(request.getRequestIds());
-        List<Request> requestsNotPending = requests.stream()
-                .filter(req -> !req.getStatus().equals(RequestStatus.PENDING)).collect(Collectors.toList());
-        if (requestsNotPending.size() == 0) {
-            throw new BadRequestException("Request must have status PENDING");
+        List<Request> requestsPending = requests.stream()
+                .filter(req -> req.getStatus().equals(RequestStatus.PENDING)).collect(Collectors.toList());
+        if (requestsPending.size() == 0) {
+            throw new ForbiddenException("Request must have status PENDING");
         }
-        if (request.getStatus().equals(RequestStatus.REJECTED)) {
+        RequestStatus status = RequestStatus.from(request.getStatus());
+        if (status == null) {
+            throw new BadRequestException("Unknown RequestStatus: " + request.getStatus());
+        }
+        if (status.equals(RequestStatus.REJECTED)) {
             requests.forEach(req -> req.setStatus(RequestStatus.REJECTED));
         } else {
             if (event.getParticipantLimit() == 0 || !event.getRequestModeration()) {
                 return new EventRequestStatusUpdateResult();
             }
             long freeLimit = event.getParticipantLimit() - requestRepository
-                    .findAllByEvent_IdAndStatus(eventId, RequestStatus.CONFIRMED).size();
+                    .findAllByEventIdAndStatusConfirmed(eventId).size();
             if (freeLimit <= 0) {
                 throw new ConstraintException(LIMIT);
             }
@@ -179,7 +197,7 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
                     value.setStatus(RequestStatus.CONFIRMED);
                     freeLimit--;
                 } else {
-                    value.setStatus(RequestStatus.REJECTED);
+                    value.setStatus(RequestStatus.CANCELED);
                 }
             }
         }
@@ -187,7 +205,41 @@ public class EvmPrivateServiceImpl implements EvmPrivateService {
         return mappingRequest.toEventRequestStatusUpdateResult(requests);
     }
 
-    private List<String> getUris(List<Event> events) {
-        return events.stream().map(event -> URI_EVENT + event.getId()).collect(Collectors.toList());
+    private Event getUpdateEvent(Event event, EventUpdateDtoRequest dto, Category category) {
+        StateAction stateAction = StateAction.from(dto.getStateAction());
+        if (stateAction == StateAction.CANCEL_REVIEW) {
+            event.setState(State.CANCELED);
+        } else if (stateAction == StateAction.SEND_TO_REVIEW) {
+            event.setState(State.PENDING);
+        }
+        if (dto.getAnnotation() != null) {
+            event.setAnnotation(dto.getAnnotation());
+        }
+        if (category != null) {
+            event.setCategory(category);
+        }
+        if (dto.getDescription() != null) {
+            event.setDescription(dto.getDescription());
+        }
+        if (dto.getEventDate() != null) {
+            event.setEventDate(dto.getEventDate());
+        }
+        if (dto.getLocation() != null) {
+            event.getLocation().setLat(dto.getLocation().getLat());
+            event.getLocation().setLon(dto.getLocation().getLon());
+        }
+        if (dto.getPaid() != null) {
+            event.setPaid(dto.getPaid());
+        }
+        if (dto.getParticipantLimit() != null) {
+            event.setParticipantLimit(dto.getParticipantLimit());
+        }
+        if (dto.getRequestModeration() != null) {
+            event.setRequestModeration(dto.getRequestModeration());
+        }
+        if (dto.getTitle() != null) {
+            event.setTitle(dto.getTitle());
+        }
+        return event;
     }
 }

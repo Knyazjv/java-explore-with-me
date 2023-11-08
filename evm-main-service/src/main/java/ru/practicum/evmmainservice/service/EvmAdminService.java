@@ -1,7 +1,13 @@
 package ru.practicum.evmmainservice.service;
 
 import org.springframework.data.domain.PageRequest;
-import ru.practicum.evmmainservice.dto.*;
+import ru.practicum.evmmainservice.dto.category.CategoryDto;
+import ru.practicum.evmmainservice.dto.compilation.CompilationDtoRequest;
+import ru.practicum.evmmainservice.dto.compilation.CompilationDtoResponse;
+import ru.practicum.evmmainservice.dto.event.EventDtoResponse;
+import ru.practicum.evmmainservice.dto.event.EventUpdateDtoRequest;
+import ru.practicum.evmmainservice.dto.event.GetEventRequestAdmin;
+import ru.practicum.evmmainservice.dto.user.UserDto;
 
 import java.util.List;
 

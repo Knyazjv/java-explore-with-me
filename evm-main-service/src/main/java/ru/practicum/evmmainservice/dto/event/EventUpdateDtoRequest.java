@@ -1,15 +1,13 @@
-package ru.practicum.evmmainservice.dto;
+package ru.practicum.evmmainservice.dto.event;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import ru.practicum.evmmainservice.enumEwm.StateAction;
+import org.hibernate.validator.constraints.Length;
+import ru.practicum.evmmainservice.dto.location.LocationDto;
 
-import javax.validation.constraints.FutureOrPresent;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 import java.time.LocalDateTime;
 
 @NoArgsConstructor
@@ -18,10 +16,12 @@ import java.time.LocalDateTime;
 @Setter
 public class EventUpdateDtoRequest {
 
+    @Length(min = 20, max = 2000)
     private String annotation;
 
     private Long category;
 
+    @Length(min = 20, max = 7000)
     private String description;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
@@ -33,9 +33,10 @@ public class EventUpdateDtoRequest {
 
     private Long participantLimit;
 
-    private StateAction stateAction;
+    private String stateAction;
 
     private Boolean requestModeration;
 
+    @Length(min = 3, max = 120)
     private String title;
 }
