@@ -1,7 +1,7 @@
 version: '3.1'
 services:
   stats-server:
-    build: evm-stats-service/stats-server/
+    build: ewm-stats-service/stats-server/
     container_name: stats-server
     ports:
       - "9090:9090"
@@ -18,13 +18,12 @@ services:
     ports:
       - "6541:5432"
     environment:
-      POSTGRES_INITDB_ARGS: '--locale=ru_RU.UTF8'
       POSTGRES_DB: "stats-db"
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: "password"
 
   ewm-service:
-    build: evm-main-service
+    build: ewm-main-service
     container_name: ewm-main
     ports:
       - "8080:8080"
@@ -32,7 +31,7 @@ services:
       - ewm-db
     environment:
       - EWM_STATS_CLIENT_URL=http://stats-server:9090
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:5432/evm-db
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://ewm-db:5432/ewm-db
       - SPRING_DATASOURCE_USERNAME=user
       - SPRING_DATASOURCE_PASSWORD=password
 
@@ -42,7 +41,6 @@ services:
     ports:
       - "6542:5432"
     environment:
-      POSTGRES_INITDB_ARGS: '--locale=ru_RU.UTF8'
       POSTGRES_DB: "ewm-db"
       POSTGRES_USER: "user"
       POSTGRES_PASSWORD: "password"
