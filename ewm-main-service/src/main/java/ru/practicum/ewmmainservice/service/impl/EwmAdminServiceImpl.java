@@ -13,7 +13,10 @@ import ru.practicum.ewmmainservice.dto.event.EventDtoResponse;
 import ru.practicum.ewmmainservice.dto.event.EventUpdateDtoRequest;
 import ru.practicum.ewmmainservice.dto.event.GetEventRequestAdmin;
 import ru.practicum.ewmmainservice.dto.user.UserDto;
-import ru.practicum.ewmmainservice.entity.*;
+import ru.practicum.ewmmainservice.entity.Category;
+import ru.practicum.ewmmainservice.entity.Compilation;
+import ru.practicum.ewmmainservice.entity.Event;
+import ru.practicum.ewmmainservice.entity.Request;
 import ru.practicum.ewmmainservice.enumEwm.State;
 import ru.practicum.ewmmainservice.enumEwm.StateAction;
 import ru.practicum.ewmmainservice.exception.exception.BadRequestException;
@@ -30,11 +33,13 @@ import ru.practicum.statsclient.StatsClient;
 import ru.practicum.statsdto.StatsDtoResponse;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 import static ru.practicum.ewmmainservice.service.impl.ConstString.*;
-import static ru.practicum.ewmmainservice.service.impl.Supportive.getEventIds;
-import static ru.practicum.ewmmainservice.service.impl.Supportive.getUris;
+import static ru.practicum.ewmmainservice.service.impl.Supportive.*;
 
 @Service
 @RequiredArgsConstructor
@@ -110,8 +115,8 @@ public class EwmAdminServiceImpl implements EwmAdminService {
             events = eventRepository.findAllByIdIn(cdr.getEvents());
         }
         Compilation compilation = compilationRepository.save(mappingCompilation.toCompilation(cdr, events));
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                LocalDateTime.now(), getUris(events), false).getBody());
         List<Request> requests = requestRepository
                 .findAllByEventIdsAndStatusConfirmed(getEventIds(compilation.getEvents()));
         return mappingCompilation.
@@ -146,8 +151,8 @@ public class EwmAdminServiceImpl implements EwmAdminService {
             compilation.setTitle(cdr.getTitle());
         }
         Compilation newCompilation = compilationRepository.save(compilation);
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                LocalDateTime.now(), getUris(events), false).getBody());
         List<Request> requests = requestRepository
                 .findAllByEventIdsAndStatusConfirmed(getEventIds(compilation.getEvents()));
         return mappingCompilation.toCompilationDtoResponse(mappingEvent.toEventDtoShortResponses(events,
@@ -176,28 +181,38 @@ public class EwmAdminServiceImpl implements EwmAdminService {
             category = null;
         }
         Event newEvent = updateEvent(event, eventDtoRequest, category);
-        List<StatsDtoResponse> stats = statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), List.of(URI_EVENT + eventId), false).getBody();
-        Long views = (stats == null) || (stats.isEmpty()) ? 0 : stats.get(0).getHits();
+        Long views = 0L;
+        if (newEvent.getPublishedOn() != null) {
+            List<StatsDtoResponse> stats = statsClient.getStats(newEvent.getPublishedOn(),
+                    LocalDateTime.now(), List.of(URI_EVENT + eventId), false).getBody();
+            if (stats != null && !stats.isEmpty()) {
+                views = stats.get(0).getHits();
+            }
+        }
         List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
         return mappingEvent.toEventDtoResponse(eventRepository.save(newEvent), views, (long) requests.size());
     }
 
     @Override
     public List<EventDtoResponse> getEvents(GetEventRequestAdmin req, Integer from, Integer size) {
-        Optional<BooleanExpression> finalCondition = getCondition(req);
+        BooleanExpression finalCondition = getCondition(req);
         Sort sort = Sort.by("id").ascending();
         PageRequest pageRequest = PageRequest.of(from / size, size, sort);
-        Iterable<Event> events = finalCondition
-                .<Iterable<Event>>map(booleanExpression -> eventRepository.findAll(booleanExpression, pageRequest))
-                .orElseGet(() -> eventRepository.findAll(pageRequest));
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
+        Iterable<Event> events = getEventsWithCondition(finalCondition, pageRequest);
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                LocalDateTime.now(), getUris(events), false).getBody());
         List<Request> requests = requestRepository.findAllByEventIdsAndStatusConfirmed(getEventIds(events));
         return mappingEvent.toEventDtoResponses(events, stats, requests);
     }
 
-    private Optional<BooleanExpression> getCondition(GetEventRequestAdmin req) {
+    private Iterable<Event> getEventsWithCondition(BooleanExpression finalCondition, PageRequest pageRequest) {
+        if (finalCondition == null) {
+            return eventRepository.findAll(pageRequest);
+        }
+        return eventRepository.findAll(finalCondition, pageRequest);
+    }
+
+    private BooleanExpression getCondition(GetEventRequestAdmin req) {
         QEvent event = QEvent.event;
         List<BooleanExpression> conditions = new ArrayList<>();
         if (req.getUsers() != null && !req.getUsers().isEmpty()) {
@@ -216,9 +231,11 @@ public class EwmAdminServiceImpl implements EwmAdminService {
             conditions.add(event.eventDate.before(req.getRangeEnd()));
         }
         if (conditions.isEmpty()) {
-            return Optional.empty();
+            return null;
         } else {
-            return conditions.stream().reduce(BooleanExpression::and);
+            return conditions.stream()
+                    .reduce(BooleanExpression::and)
+                    .get();
         }
     }
 
@@ -261,6 +278,7 @@ public class EwmAdminServiceImpl implements EwmAdminService {
             }
             event.setState(State.PUBLISHED);
             event.setConfirmedRequests(event.getConfirmedRequests());
+            event.setPublishedOn(LocalDateTime.now());
         } else if (stateAction == StateAction.REJECT_EVENT) {
             event.setState(State.CANCELED);
         }

@@ -2,6 +2,7 @@ package ru.practicum.ewmmainservice.service.impl;
 
 import ru.practicum.ewmmainservice.entity.Event;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,5 +29,15 @@ public class Supportive {
             ids.add(event.getId());
         }
         return ids;
+    }
+
+    public static LocalDateTime getDateStart(Iterable<Event> events) {
+        LocalDateTime dateStart = LocalDateTime.now();
+        for (Event event : events) {
+            if (event.getPublishedOn() != null && event.getPublishedOn().isBefore(dateStart)) {
+                dateStart = event.getPublishedOn();
+            }
+        }
+        return dateStart;
     }
 }

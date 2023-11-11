@@ -44,9 +44,9 @@ public class ErrorHandler {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
-        String stackTrace = sw.toString();
+        log.warn(sw.toString());
         return new ApiError(HttpStatus.BAD_REQUEST,
-                REASON_BAD_REQUEST, e.getMessage(), LocalDateTime.now().format(formatter), stackTrace);
+                REASON_BAD_REQUEST, e.getMessage(), LocalDateTime.now().format(formatter));
     }
 
     @ExceptionHandler({
@@ -58,9 +58,9 @@ public class ErrorHandler {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
-        String stackTrace = sw.toString();
+        log.warn(sw.toString());
         return new ApiError(HttpStatus.CONFLICT,
-                REASON_FORBIDDEN, e.getMessage(), LocalDateTime.now().format(formatter), stackTrace);
+                REASON_FORBIDDEN, e.getMessage(), LocalDateTime.now().format(formatter));
     }
 
     @ExceptionHandler({
@@ -74,9 +74,9 @@ public class ErrorHandler {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
-        String stackTrace = sw.toString();
+        log.warn(sw.toString());
         return new ApiError(HttpStatus.CONFLICT,
-                CONSTRAINT_VIOLATED, e.getMessage(), LocalDateTime.now().format(formatter), stackTrace);
+                CONSTRAINT_VIOLATED, e.getMessage(), LocalDateTime.now().format(formatter));
     }
 
     @ExceptionHandler({
@@ -88,8 +88,8 @@ public class ErrorHandler {
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         e.printStackTrace(pw);
-        String stackTrace = sw.toString();
+        log.warn(sw.toString());
         return new ApiError(HttpStatus.NOT_FOUND,
-                REASON_NOT_FOUND, e.getMessage(), LocalDateTime.now().format(formatter), stackTrace);
+                REASON_NOT_FOUND, e.getMessage(), LocalDateTime.now().format(formatter));
     }
 }

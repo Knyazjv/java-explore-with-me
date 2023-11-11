@@ -14,5 +14,4 @@ public class ApiError {
     private final String reason;
     private final String message;
     private final String timestamp;
-    private final String stackTrace;
 }

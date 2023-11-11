@@ -28,8 +28,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static ru.practicum.ewmmainservice.service.impl.ConstString.*;
-import static ru.practicum.ewmmainservice.service.impl.Supportive.getEventIds;
-import static ru.practicum.ewmmainservice.service.impl.Supportive.getUris;
+import static ru.practicum.ewmmainservice.service.impl.Supportive.*;
 
 @Service
 @RequiredArgsConstructor
@@ -89,8 +88,8 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
     @Override
     public List<EventDtoShortResponse> getEvents(Long userId, PageRequest page) {
         List<Event> events = eventRepository.findAllByInitiatorId(userId, page);
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                LocalDateTime.now(), getUris(events), false).getBody());
         List<Request> requests = requestRepository
                 .findAllByEventIdsAndStatusConfirmed(getEventIds(events));
         return mappingEvent.toEventDtoShortResponses(events, stats, requests);
@@ -102,9 +101,14 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
         Event event = eventRepository.findByInitiatorIdAndId(userId, eventId)
                 .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
-        List<StatsDtoResponse> stats = statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), List.of(URI_EVENT + eventId), false).getBody();
-        Long views = stats == null || stats.isEmpty() ? 0L : stats.get(0).getHits();
+        Long views = 0L;
+        if (event.getPublishedOn() != null) {
+            List<StatsDtoResponse> stats = statsClient.getStats(event.getPublishedOn(),
+                    LocalDateTime.now(), List.of(URI_EVENT + eventId), false).getBody();
+            if (stats != null && !stats.isEmpty()) {
+                views = stats.get(0).getHits();
+            }
+        }
         List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
         return mappingEvent.toEventDtoResponse(event, views, (long) requests.size());
     }

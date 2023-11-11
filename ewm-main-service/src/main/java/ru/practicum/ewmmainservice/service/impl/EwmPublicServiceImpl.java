@@ -38,8 +38,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static ru.practicum.ewmmainservice.service.impl.ConstString.*;
-import static ru.practicum.ewmmainservice.service.impl.Supportive.getEventIds;
-import static ru.practicum.ewmmainservice.service.impl.Supportive.getUris;
+import static ru.practicum.ewmmainservice.service.impl.Supportive.*;
 
 @Service
 @RequiredArgsConstructor
@@ -77,8 +76,8 @@ public class EwmPublicServiceImpl implements EwmPublicService {
                 : getSort(req.getSort());
         PageRequest pageRequest = PageRequest.of(from / size, size, sort);
         Iterable<Event> events = eventRepository.findAll(finalCondition, pageRequest);
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(events), false).getBody());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                LocalDateTime.now(), getUris(events), false).getBody());
         saveStat(request);
         List<Request> requests = requestRepository.findAllByEventIdsAndStatusConfirmed(getEventIds(events));
         return mappingEvent.toEventDtoShortResponses(events, stats, requests);
@@ -93,12 +92,17 @@ public class EwmPublicServiceImpl implements EwmPublicService {
                 URI_EVENT + event.getId(),
                 requestHttp.getRemoteAddr(),
                 LocalDateTime.now()));
-        List<StatsDtoResponse> stats = statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), List.of(URI_EVENT + eventId), true).getBody();
+        Long views = 0L;
+        if (event.getPublishedOn() != null) {
+            List<StatsDtoResponse> stats = statsClient.getStats(event.getPublishedOn(),
+                    LocalDateTime.now(), List.of(URI_EVENT + eventId), true).getBody();
+            if (stats != null && !stats.isEmpty()) {
+                views = stats.get(0).getHits();
+            }
+        }
         List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
-        assert stats != null;
         return mappingEvent.toEventDtoResponse(event,
-                stats.isEmpty() ? 0 : stats.get(0).getHits(),
+                views,
                 (long) requests.size());
     }
 
@@ -114,8 +118,8 @@ public class EwmPublicServiceImpl implements EwmPublicService {
         for (Compilation compilation : compilations) {
             allEvents.addAll(compilation.getEvents());
         }
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(allEvents), false).getBody());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(allEvents),
+                LocalDateTime.now(), getUris(allEvents), false).getBody());
         List<Request> requests = requestRepository
                 .findAllByEventIdsAndStatusConfirmed(getEventIds(allEvents));
         return mappingCompilation.toCompilationDtoResponses(compilations, stats, requests);
@@ -125,8 +129,8 @@ public class EwmPublicServiceImpl implements EwmPublicService {
     public CompilationDtoResponse getCompilationById(Long compId) {
         Compilation compilation = compilationRepository.findById(compId)
                 .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_COMPILATION, compId)));
-        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(LocalDateTime.now().minusYears(10),
-                LocalDateTime.now().plusYears(10), getUris(compilation.getEvents()), false).getBody());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(compilation.getEvents()),
+                LocalDateTime.now(), getUris(compilation.getEvents()), false).getBody());
         List<Request> requests = requestRepository
                 .findAllByEventIdsAndStatusConfirmed(getEventIds(compilation.getEvents()));
         return mappingCompilation.toCompilationDtoResponse(mappingEvent
