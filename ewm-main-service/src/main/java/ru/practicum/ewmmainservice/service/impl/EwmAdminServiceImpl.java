@@ -28,6 +28,7 @@ import ru.practicum.ewmmainservice.mapper.MappingCompilation;
 import ru.practicum.ewmmainservice.mapper.MappingEvent;
 import ru.practicum.ewmmainservice.mapper.MappingUser;
 import ru.practicum.ewmmainservice.repository.*;
+import ru.practicum.ewmmainservice.entity.QEvent;
 import ru.practicum.ewmmainservice.service.EwmAdminService;
 import ru.practicum.statsclient.StatsClient;
 import ru.practicum.statsdto.StatsDtoResponse;
