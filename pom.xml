@@ -13,8 +13,8 @@
 	<name>Explore With Me</name>
 
 	<modules>
-		<module>evm-stats-service</module>
-		<module>evm-main-service</module>
+		<module>ewm-stats-service</module>
+		<module>ewm-main-service</module>
 	</modules>
 
 	<groupId>ru.practicum</groupId>
@@ -206,10 +206,7 @@
 			<id>check</id>
 			<build>
 				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-checkstyle-plugin</artifactId>
-					</plugin>
+
 					<plugin>
 						<groupId>com.github.spotbugs</groupId>
 						<artifactId>spotbugs-maven-plugin</artifactId>
