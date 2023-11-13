@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import ru.practicum.ewmmainservice.dto.rating.RatingDtoResponse;
+import ru.practicum.ewmmainservice.dto.visiting.VisitingDtoResponse;
 import ru.practicum.ewmmainservice.dto.event.*;
 import ru.practicum.ewmmainservice.dto.request.RequestDtoResponse;
 import ru.practicum.ewmmainservice.service.EwmPrivateService;
@@ -91,6 +93,49 @@ public class EwmPrivateController {
         log.info("PATCH /users/{}/events/{}/requests", userId, eventId);
         return ResponseEntity.status(HttpStatus.OK)
                 .body(ewmPrivateService.updateStatusRequest(userId, eventId, request));
+    }
+
+    @PostMapping(value = "/{userId}/events/{eventId}/visiting")
+    public ResponseEntity<VisitingDtoResponse> createVisiting(@PathVariable Long userId,
+                                                              @PathVariable Long eventId) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ewmPrivateService.createVisiting(userId, eventId));
+    }
+
+    @DeleteMapping(value = "/{userId}/events/{eventId}/visiting")
+    public ResponseEntity<Void> deleteVisiting(@PathVariable Long userId,
+                                               @PathVariable Long eventId) {
+        ewmPrivateService.deleteVisiting(userId, eventId);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @PostMapping(value = "/{userId}/events/{eventId}/like")
+    public ResponseEntity<RatingDtoResponse> createRating(@PathVariable Long userId,
+                                                          @PathVariable Long eventId,
+                                                          @RequestParam Boolean like) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(ewmPrivateService.createRating(userId, eventId, like));
+    }
+
+    @DeleteMapping(value = "/{userId}/events/{eventId}/like")
+    public ResponseEntity<Void> deleteRating(@PathVariable Long userId,
+                                             @PathVariable Long eventId) {
+        ewmPrivateService.deleteRating(userId, eventId);
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+    }
+
+    @GetMapping(value = "/{userId}/visiting")
+    public ResponseEntity<List<VisitingDtoResponse>> getVisitings(@PathVariable Long userId,
+                                                           @RequestParam(defaultValue = "0") Integer from,
+                                                           @RequestParam(defaultValue = "10") Integer size) {
+        return ResponseEntity.status(HttpStatus.OK).body(ewmPrivateService.getVisitings(userId,
+                PageRequest.of(from / size, size)));
+    }
+
+    @GetMapping(value = "/{userId}/like")
+    public ResponseEntity<List<RatingDtoResponse>> getUserEstimates(@PathVariable Long userId,
+                                                           @RequestParam(defaultValue = "0") Integer from,
+                                                           @RequestParam(defaultValue = "10") Integer size) {
+        return ResponseEntity.status(HttpStatus.OK).body(ewmPrivateService.getEstimates(userId,
+                PageRequest.of(from / size, size)));
     }
 
 }

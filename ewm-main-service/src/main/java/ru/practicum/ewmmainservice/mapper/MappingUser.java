@@ -11,11 +11,11 @@ import java.util.stream.Collectors;
 @Component
 public class MappingUser {
     public UserDto toDto(User user) {
-        return new UserDto(user.getId(), user.getName(), user.getEmail());
+        return new UserDto(user.getId(), user.getName(), user.getEmail(), user.getRating());
     }
 
     public User toUser(UserDto userDto) {
-        return new User(userDto.getId(), userDto.getName(), userDto.getEmail());
+        return new User(userDto.getId(), userDto.getName(), userDto.getEmail(), 0D);
     }
 
     public List<UserDto> toDtos(List<User> users) {

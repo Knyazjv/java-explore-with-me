@@ -33,4 +33,6 @@ public class EventDtoShortResponse {
     private String title;
 
     private Long views;
+
+    private Double rating;
 }
