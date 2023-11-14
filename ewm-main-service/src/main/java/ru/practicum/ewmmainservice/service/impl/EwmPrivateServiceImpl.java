@@ -211,6 +211,7 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
         return mappingRequest.toEventRequestStatusUpdateResult(requests);
     }
 
+    @Transactional
     @Override
     public VisitingDtoResponse createVisiting(Long userId, Long eventId) {
         User visitor = userRepository.findById(userId)
@@ -234,6 +235,7 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
         return mappingVisiting.toDtoResponse(visitingRepository.save(visiting), stats, requests);
     }
 
+    @Transactional
     @Override
     public void deleteVisiting(Long userId, Long eventId) {
         userRepository.findById(userId)
@@ -247,6 +249,7 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
         visitingRepository.delete(visiting);
     }
 
+    @Transactional
     @Override
     public RatingDtoResponse createRating(Long userId, Long eventId, Boolean like) {
         User estimator = userRepository.findById(userId)
@@ -271,6 +274,7 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
         return mappingRating.toDtoResponse(rating, event, estimator, stats, requests);
     }
 
+    @Transactional
     @Override
     public void deleteRating(Long userId, Long eventId) {
         userRepository.findById(userId)

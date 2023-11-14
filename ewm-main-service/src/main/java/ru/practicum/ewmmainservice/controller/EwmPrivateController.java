@@ -98,12 +98,14 @@ public class EwmPrivateController {
     @PostMapping(value = "/{userId}/events/{eventId}/visiting")
     public ResponseEntity<VisitingDtoResponse> createVisiting(@PathVariable Long userId,
                                                               @PathVariable Long eventId) {
+        log.info("POST /users/{}/events/{}/visiting", userId, eventId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ewmPrivateService.createVisiting(userId, eventId));
     }
 
     @DeleteMapping(value = "/{userId}/events/{eventId}/visiting")
     public ResponseEntity<Void> deleteVisiting(@PathVariable Long userId,
                                                @PathVariable Long eventId) {
+        log.info("DELETE /users/{}/events/{}/visiting", userId, eventId);
         ewmPrivateService.deleteVisiting(userId, eventId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
@@ -112,12 +114,14 @@ public class EwmPrivateController {
     public ResponseEntity<RatingDtoResponse> createRating(@PathVariable Long userId,
                                                           @PathVariable Long eventId,
                                                           @RequestParam Boolean like) {
+        log.info("POST /users/{}/events/{}/like; like:{}", userId, eventId, like);
         return ResponseEntity.status(HttpStatus.CREATED).body(ewmPrivateService.createRating(userId, eventId, like));
     }
 
     @DeleteMapping(value = "/{userId}/events/{eventId}/like")
     public ResponseEntity<Void> deleteRating(@PathVariable Long userId,
                                              @PathVariable Long eventId) {
+        log.info("DELETE /users/{}/events/{}/like", userId, eventId);
         ewmPrivateService.deleteRating(userId, eventId);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
@@ -126,6 +130,7 @@ public class EwmPrivateController {
     public ResponseEntity<List<VisitingDtoResponse>> getVisitings(@PathVariable Long userId,
                                                            @RequestParam(defaultValue = "0") Integer from,
                                                            @RequestParam(defaultValue = "10") Integer size) {
+        log.info("GET /users/{}/visiting", userId);
         return ResponseEntity.status(HttpStatus.OK).body(ewmPrivateService.getVisitings(userId,
                 PageRequest.of(from / size, size)));
     }
@@ -134,6 +139,7 @@ public class EwmPrivateController {
     public ResponseEntity<List<RatingDtoResponse>> getUserEstimates(@PathVariable Long userId,
                                                            @RequestParam(defaultValue = "0") Integer from,
                                                            @RequestParam(defaultValue = "10") Integer size) {
+        log.info("GET /users/{}/like", userId);
         return ResponseEntity.status(HttpStatus.OK).body(ewmPrivateService.getEstimates(userId,
                 PageRequest.of(from / size, size)));
     }
