@@ -80,7 +80,11 @@ public class EwmPublicServiceImpl implements EwmPublicService {
                 LocalDateTime.now(), getUris(events), false).getBody());
         saveStat(request);
         List<Request> requests = requestRepository.findAllByEventIdsAndStatusConfirmed(getEventIds(events));
-        return mappingEvent.toEventDtoShortResponses(events, stats, requests);
+        List<EventDtoShortResponse> dtos = mappingEvent.toEventDtoShortResponses(events, stats, requests);
+        if (req.getSort() != null && req.getSort().equals(SortEvent.VIEWS)) {
+            dtos.sort((dto1, dto2) -> Math.toIntExact(dto2.getViews() - dto1.getViews()));
+        }
+        return dtos;
     }
 
     @Transactional
@@ -147,7 +151,7 @@ public class EwmPublicServiceImpl implements EwmPublicService {
     private Sort getSort(SortEvent sortEvent) {
         switch (sortEvent) {
             case EVENT_DATE: return Sort.by("eventDate").ascending();
-            case VIEWS: return Sort.by("resolvedUrl").ascending();
+            case RATING: return Sort.by("rating").ascending();
             default: return null;
         }
     }

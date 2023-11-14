@@ -4,19 +4,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.ewmmainservice.dto.rating.RatingDtoResponse;
+import ru.practicum.ewmmainservice.dto.visiting.VisitingDtoResponse;
 import ru.practicum.ewmmainservice.dto.event.*;
 import ru.practicum.ewmmainservice.dto.request.RequestDtoResponse;
 import ru.practicum.ewmmainservice.entity.*;
 import ru.practicum.ewmmainservice.enumEwm.RequestStatus;
 import ru.practicum.ewmmainservice.enumEwm.State;
 import ru.practicum.ewmmainservice.enumEwm.StateAction;
-import ru.practicum.ewmmainservice.exception.exception.BadRequestException;
-import ru.practicum.ewmmainservice.exception.exception.ConstraintException;
-import ru.practicum.ewmmainservice.exception.exception.ForbiddenException;
-import ru.practicum.ewmmainservice.exception.exception.NotFoundException;
-import ru.practicum.ewmmainservice.mapper.MappingEvent;
-import ru.practicum.ewmmainservice.mapper.MappingLocation;
-import ru.practicum.ewmmainservice.mapper.MappingRequest;
+import ru.practicum.ewmmainservice.exception.exception.*;
+import ru.practicum.ewmmainservice.mapper.*;
 import ru.practicum.ewmmainservice.repository.*;
 import ru.practicum.ewmmainservice.service.EwmPrivateService;
 import ru.practicum.statsclient.StatsClient;
@@ -25,6 +22,7 @@ import ru.practicum.statsdto.StatsDtoResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static ru.practicum.ewmmainservice.service.impl.ConstString.*;
@@ -38,6 +36,10 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
     private final EwmCategoryRepository categoryRepository;
     private final EwmUserRepository userRepository;
     private final EwmRequestRepository requestRepository;
+    private final EwmRatingRepository ratingRepository;
+    private final EwmVisitingRepository visitingRepository;
+    private final MappingVisiting mappingVisiting;
+    private final MappingRating mappingRating;
     private final MappingEvent mappingEvent;
     private final MappingLocation mappingLocation;
     private final MappingRequest mappingRequest;
@@ -209,6 +211,114 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
         return mappingRequest.toEventRequestStatusUpdateResult(requests);
     }
 
+    @Transactional
+    @Override
+    public VisitingDtoResponse createVisiting(Long userId, Long eventId) {
+        User visitor = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
+        Optional<Visiting> visitingOptional = visitingRepository.findByEventIdAndVisitorId(eventId, userId);
+        if (visitingOptional.isPresent()) {
+            throw new ConflictException("You have already added a visit");
+        }
+        if (event.getEventDate().isBefore(LocalDateTime.now())) {
+            throw new ConflictException("You cannot attend an upcoming event");
+        }
+        if (event.getState() != State.PUBLISHED || event.getPublishedOn() == null) {
+            throw new ConstraintException("You cannot attend an unpublished event.");
+        }
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(event.getPublishedOn(),
+                LocalDateTime.now(), List.of(URI_EVENT + eventId), false).getBody());
+        List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
+        Visiting visiting = mappingVisiting.toVisiting(visitor, event);
+        return mappingVisiting.toDtoResponse(visitingRepository.save(visiting), stats, requests);
+    }
+
+    @Transactional
+    @Override
+    public void deleteVisiting(Long userId, Long eventId) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
+        eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
+        Visiting visiting = visitingRepository.findByEventIdAndVisitorId(eventId, userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_VISITING, userId, eventId)));
+        Optional<Rating> rating = ratingRepository.findByEventIdAndEstimatorId(eventId, userId);
+        rating.ifPresent(ratingRepository::delete);
+        visitingRepository.delete(visiting);
+    }
+
+    @Transactional
+    @Override
+    public RatingDtoResponse createRating(Long userId, Long eventId, Boolean like) {
+        User estimator = userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
+        visitingRepository.findByEventIdAndVisitorId(eventId, userId)
+                .orElseThrow(() -> new ConflictException(String.format(NOT_FOUND_VISITING, userId, eventId)));
+        Optional<Rating> ratingOptional = ratingRepository.findByEventIdAndEstimatorId(eventId, userId);
+        Rating rating;
+        if (ratingOptional.isEmpty()) {
+            rating = ratingRepository.save(mappingRating.toRating(event, estimator, like));
+        } else {
+            rating = ratingOptional.get();
+            rating.setLike(like);
+            rating = ratingRepository.save(rating);
+        }
+        event = updateRating(event);
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(event.getPublishedOn(),
+                LocalDateTime.now(), List.of(URI_EVENT + eventId), false).getBody());
+        List<Request> requests = requestRepository.findAllByEventIdAndStatusConfirmed(eventId);
+        return mappingRating.toDtoResponse(rating, event, estimator, stats, requests);
+    }
+
+    @Transactional
+    @Override
+    public void deleteRating(Long userId, Long eventId) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new NotFoundException(NOT_FOUND_EVENT + eventId));
+        Rating rating = ratingRepository.findByEventIdAndEstimatorId(eventId, userId)
+                .orElseThrow(() -> new NotFoundException(NOT_FOUND_COMPILATION));
+        ratingRepository.deleteById(rating.getId());
+        updateRating(event);
+    }
+
+    @Override
+    public List<VisitingDtoResponse> getVisitings(Long userId, PageRequest page) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
+        List<Visiting> visitings = visitingRepository.findAllByVisitorId(userId, page);
+        List<Event> events = visitings.stream().
+                map(Visiting::getEvent)
+                .collect(Collectors.toList());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                LocalDateTime.now(), getUris(events), false).getBody());
+        List<Request> requests = requestRepository
+                .findAllByEventIdsAndStatusConfirmed(getEventIds(events));
+        return mappingVisiting.toDtoResponses(visitings,
+                mappingEvent.toEventDtoShortResponses(events, stats, requests));
+    }
+
+    @Override
+    public List<RatingDtoResponse> getEstimates(Long userId, PageRequest page) {
+        userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, userId)));
+        List<Rating> ratings = ratingRepository.findAllByEstimatorId(userId, page);
+        List<Event> events = ratings.stream().
+                map(Rating::getEvent)
+                .collect(Collectors.toList());
+        List<StatsDtoResponse> stats = Objects.requireNonNull(statsClient.getStats(getDateStart(events),
+                        LocalDateTime.now(), getUris(events), false).getBody());
+        List<Request> requests = requestRepository
+                .findAllByEventIdsAndStatusConfirmed(getEventIds(events));
+        return mappingRating.toDtoResponses(ratings,
+                mappingEvent.toEventDtoShortResponses(events, stats, requests));
+    }
+
     private Event getUpdateEvent(Event event, EventUpdateDtoRequest dto, Category category) {
         StateAction stateAction = StateAction.from(dto.getStateAction());
         if (stateAction == StateAction.CANCEL_REVIEW) {
@@ -245,5 +355,44 @@ public class EwmPrivateServiceImpl implements EwmPrivateService {
             event.setTitle(dto.getTitle());
         }
         return event;
+    }
+
+    private Event updateRating(Event event) {
+        List<Rating> ratings = ratingRepository.findAllByEventId(event.getId());
+        event.setRating(getRatingEvent(ratings));
+        User initiator = userRepository.findById(event.getInitiator().getId())
+                .orElseThrow(() -> new NotFoundException(String.format(NOT_FOUND_USER, event.getInitiator().getId())));
+        List<Rating> ratingsInitiator = ratingRepository.findAllByEstimatorId(event.getInitiator().getId());
+        initiator.setRating(getRatingUser(ratingsInitiator));
+        event.setInitiator(initiator);
+        userRepository.save(initiator);
+        return eventRepository.save(event);
+    }
+
+    private Double getRatingUser(List<Rating> ratings) {
+        double count = 0d;
+        for (Rating rating : ratings) {
+            count += rating.getEvent().getRating();
+        }
+        if (ratings.isEmpty()) {
+            return count;
+        }
+        return count / ratings.size();
+    }
+
+    private Double getRatingEvent(List<Rating> ratings) {
+        double sizeLike = 0d;
+        double sizeDislike = 0d;
+        for (Rating rating : ratings) {
+            if (rating.getLike()) {
+                sizeLike++;
+            } else {
+                sizeDislike++;
+            }
+        }
+        if (sizeLike == 0d && sizeDislike == 0d) {
+            return 0d;
+        }
+        return sizeLike/(sizeLike + sizeDislike) * 10d;
     }
 }

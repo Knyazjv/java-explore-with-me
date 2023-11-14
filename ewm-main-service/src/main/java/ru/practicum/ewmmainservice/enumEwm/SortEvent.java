@@ -1,6 +1,7 @@
 package ru.practicum.ewmmainservice.enumEwm;
 
 public enum SortEvent {
+    RATING,
     EVENT_DATE,
     VIEWS;
 

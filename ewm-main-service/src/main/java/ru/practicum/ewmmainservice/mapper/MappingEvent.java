@@ -41,7 +41,8 @@ public class MappingEvent {
                 null,
                 edr.getRequestModeration() == null || edr.getRequestModeration(),
                 State.PENDING,
-                edr.getTitle());
+                edr.getTitle(),
+                0D);
     }
 
     public EventDtoResponse toEventDtoResponse(Event event, Long views, Long confirmedRequests) {
@@ -66,7 +67,8 @@ public class MappingEvent {
                 event.getRequestModeration(),
                 event.getState(),
                 event.getTitle(),
-                views);
+                views,
+                event.getRating());
     }
 
     public EventDtoResponse toEventDtoResponse(Event event, Long views) {
@@ -88,7 +90,8 @@ public class MappingEvent {
                 event.getRequestModeration(),
                 event.getState(),
                 event.getTitle(),
-                views);
+                views,
+                event.getRating());
     }
 
     public EventDtoShortResponse toEventDtoShortResponse(Event event, Long views, Long confirmedRequests) {
@@ -108,7 +111,8 @@ public class MappingEvent {
                 mappingUser.toUserShortDto(event.getInitiator()),
                 event.getPaid(),
                 event.getTitle(),
-                views);
+                views,
+                event.getRating());
     }
 
     public List<EventDtoShortResponse> toEventDtoShortResponses(List<Event> events, List<StatsDtoResponse> stats,

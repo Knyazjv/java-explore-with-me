@@ -22,4 +22,6 @@ public class UserDto {
     @NotBlank
     @Email
     private String email;
+
+    private Double rating;
 }

@@ -1,6 +1,8 @@
 package ru.practicum.ewmmainservice.service;
 
 import org.springframework.data.domain.PageRequest;
+import ru.practicum.ewmmainservice.dto.rating.RatingDtoResponse;
+import ru.practicum.ewmmainservice.dto.visiting.VisitingDtoResponse;
 import ru.practicum.ewmmainservice.dto.event.*;
 import ru.practicum.ewmmainservice.dto.request.RequestDtoResponse;
 
@@ -25,4 +27,16 @@ public interface EwmPrivateService {
 
     EventRequestStatusUpdateResult updateStatusRequest(Long userId, Long eventId,
                                                        EventRequestStatusUpdateRequest request);
+
+    VisitingDtoResponse createVisiting(Long userId, Long eventId);
+
+    void deleteVisiting(Long userId, Long eventId);
+
+    RatingDtoResponse createRating(Long userId, Long eventId, Boolean like);
+
+    void deleteRating(Long userId, Long eventId);
+
+    List<VisitingDtoResponse> getVisitings(Long userId, PageRequest of);
+
+    List<RatingDtoResponse> getEstimates(Long userId, PageRequest of);
 }
